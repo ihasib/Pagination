@@ -7,8 +7,19 @@
 
 import Foundation
 
+protocol StatusUpdaterDict {
+    func didFetchFailed(error: Error?)
+    func didFetchSucceeded(userInfo: [String: Any])
+}
+
+protocol StatusUpdaterStruct {
+    func didFetchSucceeded(userInfo: Any)
+}
+
 class HttpClient {
     static let shared = HttpClient()
+    var statusDelegate: StatusUpdaterDict?
+    var statusDelegateStruct: StatusUpdaterStruct?
     
     private init() {
         
@@ -19,21 +30,20 @@ class HttpClient {
         let urlString = "https://reqres.in/api/users/\(id)"
         guard let url = URL(string: urlString) else { return }
         let urlRequest = URLRequest(url: url)
-        let task = URLSession.shared.dataTask(with: urlRequest) { (data, response, error) in
+        let task = URLSession.shared.dataTask(with: urlRequest) {[weak self] (data, response, error) in
             if let error = error {
                 print(error.localizedDescription)
             }
             guard let data = data else { return }
-            
+            self?.statusDelegateStruct?.didFetchSucceeded(userInfo: data)
             do {
-                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {return}
-                if let data = json["data"], let support = json["support"] {
-                    print("+data = \(data)")
-                    print("+support = \(support)")
+                guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    self?.statusDelegate?.didFetchFailed(error: nil)
+                    return
                 }
-                print("-json = \(json)")
+                self?.statusDelegate?.didFetchSucceeded(userInfo: json)
             } catch {
-                print(error.localizedDescription)
+                self?.statusDelegate?.didFetchFailed(error: error)
             }
         }
         task.resume()
